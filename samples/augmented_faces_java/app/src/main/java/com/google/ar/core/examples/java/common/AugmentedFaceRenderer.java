@@ -1,4 +1,4 @@
-package com.google.ar.core.examples.java.augmentedfaces;
+package com.google.ar.core.examples.java.common;
 
 import static com.google.ar.core.examples.java.common.rendering.ShaderUtil.loadGLShader;
 
@@ -8,7 +8,8 @@ import android.graphics.BitmapFactory;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.opengl.Matrix;
-import com.google.ar.core.AugmentedFace;
+//import com.google.ar.core.AugmentedFace;
+
 import java.io.IOException;
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
@@ -41,11 +42,12 @@ public class AugmentedFaceRenderer {
   private float specularPower = 6.0f;
 
   private final int[] textureId = new int[1];
+  private int pointSizeUniform;
 
   private static final float[] lightDirection = new float[] {0.0f, 1.0f, 0.0f, 0.0f};
-  private static final String VERTEX_SHADER_NAME = "shaders/object.vert";
-  private static final String FRAGMENT_SHADER_NAME = "shaders/object.frag";
-  private static final String FACE_TEXTURE_FILENAME = "models/freckles.png";
+  private static final String VERTEX_SHADER_NAME = "shaders/point_cloud.vert";
+  private static final String FRAGMENT_SHADER_NAME = "shaders/point_cloud.frag";
+  private static final String FACE_TEXTURE_FILENAME = "";//""models/green.png";
   private int program;
   private final float[] modelViewProjectionMat = new float[16];
   private final float[] modelViewMat = new float[16];
@@ -66,21 +68,27 @@ public class AugmentedFaceRenderer {
 
     modelViewProjectionUniform = GLES20.glGetUniformLocation(program, "u_ModelViewProjection");
     modelViewUniform = GLES20.glGetUniformLocation(program, "u_ModelView");
-    textureUniform = GLES20.glGetUniformLocation(program, "u_Texture");
-
-    lightingParametersUniform = GLES20.glGetUniformLocation(program, "u_LightningParameters");
-    materialParametersUniform = GLES20.glGetUniformLocation(program, "u_MaterialParameters");
-    colorCorrectionParameterUniform =
-        GLES20.glGetUniformLocation(program, "u_ColorCorrectionParameters");
-    tintColorUniform = GLES20.glGetUniformLocation(program, "u_TintColor");
 
     attriVertices = GLES20.glGetAttribLocation(program, "a_Position");
-    attriUvs = GLES20.glGetAttribLocation(program, "a_TexCoord");
-    attriNormals = GLES20.glGetAttribLocation(program, "a_Normal");
 
-    GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-    GLES20.glGenTextures(1, textureId, 0);
-    loadTexture(context, textureId, FACE_TEXTURE_FILENAME);
+    if(!FACE_TEXTURE_FILENAME.isEmpty()) {
+      textureUniform = GLES20.glGetUniformLocation(program, "u_Texture");
+
+      lightingParametersUniform = GLES20.glGetUniformLocation(program, "u_LightningParameters");
+      materialParametersUniform = GLES20.glGetUniformLocation(program, "u_MaterialParameters");
+      colorCorrectionParameterUniform =
+              GLES20.glGetUniformLocation(program, "u_ColorCorrectionParameters");
+      tintColorUniform = GLES20.glGetUniformLocation(program, "u_TintColor");
+      attriNormals = GLES20.glGetAttribLocation(program, "a_Normal");
+      attriUvs = GLES20.glGetAttribLocation(program, "a_TexCoord");
+      GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+      GLES20.glGenTextures(1, textureId, 0);
+      loadTexture(context, textureId, FACE_TEXTURE_FILENAME);
+    }
+    else
+      textureId[0] = -1;
+      tintColorUniform = GLES20.glGetUniformLocation(program, "u_Color");
+      pointSizeUniform = GLES20.glGetUniformLocation(program, "u_PointSize");
   }
 
   private static void loadTexture(Context context, int[] textureId, String filename)
@@ -104,8 +112,6 @@ public class AugmentedFaceRenderer {
       float[] colorCorrectionRgba,
       AugmentedFace face) {
     FloatBuffer vertices = face.getMeshVertices();
-    FloatBuffer normals = face.getMeshNormals();
-    FloatBuffer textureCoords = face.getMeshTextureCoordinates();
     ShortBuffer triangleIndices = face.getMeshTriangleIndices();
     GLES20.glUseProgram(program);
     GLES20.glDepthMask(false);
@@ -115,20 +121,7 @@ public class AugmentedFaceRenderer {
     Matrix.multiplyMM(modelViewProjectionMat, 0, modelViewProjectionMatTemp, 0, modelmtx, 0);
     Matrix.multiplyMM(modelViewMat, 0, viewmtx, 0, modelmtx, 0);
 
-    // Set the lighting environment properties.
-    Matrix.multiplyMV(viewLightDirection, 0, modelViewMat, 0, lightDirection, 0);
-    normalizeVec3(viewLightDirection);
 
-    GLES20.glUniform4f(
-        lightingParametersUniform,
-        viewLightDirection[0],
-        viewLightDirection[1],
-        viewLightDirection[2],
-        1.f);
-    GLES20.glUniform4fv(colorCorrectionParameterUniform, 1, colorCorrectionRgba, 0);
-
-    // Set the object material properties.
-    GLES20.glUniform4f(materialParametersUniform, ambient, diffuse, specular, specularPower);
 
     // Set the ModelViewProjection matrix in the shader.
     GLES20.glUniformMatrix4fv(modelViewUniform, 1, false, modelViewMat, 0);
@@ -137,25 +130,47 @@ public class AugmentedFaceRenderer {
     GLES20.glEnableVertexAttribArray(attriVertices);
     GLES20.glVertexAttribPointer(attriVertices, 3, GLES20.GL_FLOAT, false, 0, vertices);
 
-    GLES20.glEnableVertexAttribArray(attriNormals);
-    GLES20.glVertexAttribPointer(attriNormals, 3, GLES20.GL_FLOAT, false, 0, normals);
 
-    GLES20.glEnableVertexAttribArray(attriUvs);
-    GLES20.glVertexAttribPointer(attriUvs, 2, GLES20.GL_FLOAT, false, 0, textureCoords);
+    if(textureId[0] >= 0) {
 
-    GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-    GLES20.glUniform1i(textureUniform, 0);
+      FloatBuffer normals = face.getMeshNormals();
+      FloatBuffer textureCoords = face.getMeshTextureCoordinates();
+      // Set the lighting environment properties.
+      Matrix.multiplyMV(viewLightDirection, 0, modelViewMat, 0, lightDirection, 0);
+      normalizeVec3(viewLightDirection);
 
-    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId[0]);
-    GLES20.glUniform4f(tintColorUniform, 0, 0, 0, 0);
-    GLES20.glEnable(GLES20.GL_BLEND);
+      // Set the object material properties.
+      GLES20.glUniform4f(materialParametersUniform, ambient, diffuse, specular, specularPower);
+      GLES20.glEnableVertexAttribArray(attriNormals);
+      GLES20.glVertexAttribPointer(attriNormals, 3, GLES20.GL_FLOAT, false, 0, normals);
+      GLES20.glUniform4f(
+              lightingParametersUniform,
+              viewLightDirection[0],
+              viewLightDirection[1],
+              viewLightDirection[2],
+              1.f);
+      GLES20.glUniform4fv(colorCorrectionParameterUniform, 1, colorCorrectionRgba, 0);
+      GLES20.glEnableVertexAttribArray(attriUvs);
+      GLES20.glVertexAttribPointer(attriUvs, 2, GLES20.GL_FLOAT, false, 0, textureCoords);
+
+      GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
+      GLES20.glUniform1i(textureUniform, 0);
+
+      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId[0]);
+      GLES20.glUniform4f(tintColorUniform, 0, 0, 0, 0);
+      GLES20.glEnable(GLES20.GL_BLEND);
+    }else{
+
+      GLES20.glUniform4f(tintColorUniform, 0, 1, 0, 0);
+      GLES20.glUniform1f(pointSizeUniform, 5.0f);
+    }
 
     // Textures are loaded with premultiplied alpha
     // (https://developer.android.com/reference/android/graphics/BitmapFactory.Options#inPremultiplied),
     // so we use the premultiplied alpha blend factors.
     GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
     GLES20.glDrawElements(
-        GLES20.GL_TRIANGLES, triangleIndices.limit(), GLES20.GL_UNSIGNED_SHORT, triangleIndices);
+        GLES20.GL_POINTS, triangleIndices.limit(), GLES20.GL_UNSIGNED_SHORT, triangleIndices);
 
     GLES20.glUseProgram(0);
     GLES20.glDepthMask(true);

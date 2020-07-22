@@ -24,13 +24,14 @@ import android.util.Log;
 import android.widget.Toast;
 import com.google.ar.core.ArCoreApk;
 import com.google.ar.core.AugmentedFace;
-import com.google.ar.core.AugmentedFace.RegionType;
 import com.google.ar.core.Camera;
 import com.google.ar.core.Config;
 import com.google.ar.core.Config.AugmentedFaceMode;
 import com.google.ar.core.Frame;
+import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.core.TrackingState;
+import com.google.ar.core.examples.java.common.AugmentedFaceRenderer;
 import com.google.ar.core.examples.java.common.helpers.CameraPermissionHelper;
 import com.google.ar.core.examples.java.common.helpers.DisplayRotationHelper;
 import com.google.ar.core.examples.java.common.helpers.FullScreenHelper;
@@ -39,6 +40,8 @@ import com.google.ar.core.examples.java.common.helpers.TapHelper;
 import com.google.ar.core.examples.java.common.helpers.TrackingStateHelper;
 import com.google.ar.core.examples.java.common.rendering.BackgroundRenderer;
 import com.google.ar.core.examples.java.common.rendering.ObjectRenderer;
+import com.google.ar.core.examples.java.common.rendering.Vector3;
+import com.google.ar.core.examples.java.common.rendering.Quaternion;
 import com.google.ar.core.exceptions.CameraNotAvailableException;
 import com.google.ar.core.exceptions.UnavailableApkTooOldException;
 import com.google.ar.core.exceptions.UnavailableArcoreNotInstalledException;
@@ -216,8 +219,8 @@ public class AugmentedFacesActivity extends AppCompatActivity implements GLSurfa
       augmentedFaceRenderer.setMaterialProperties(0.0f, 1.0f, 0.1f, 6.0f);
       noseObject.createOnGlThread(
           /*context=*/ this,
-          "models/NOSE.obj",
-          "models/nose_fur.png");
+          "models/andy.obj",
+          "models/andy.png");
       noseObject.setMaterialProperties(0.0f, 1.0f, 0.1f, 6.0f);
       noseObject.setBlendMode(ObjectRenderer.BlendMode.AlphaBlending);
       rightEarObject.createOnGlThread(
@@ -282,12 +285,14 @@ public class AugmentedFacesActivity extends AppCompatActivity implements GLSurfa
       trackingStateHelper.updateKeepScreenOnFlag(camera.getTrackingState());
 
       Collection<AugmentedFace> faces = session.getAllTrackables(AugmentedFace.class);
-      for (AugmentedFace face : faces) {
-        if (face.getTrackingState() != TrackingState.TRACKING) {
+      for (com.google.ar.core.AugmentedFace faceARCore : faces) {
+        if (faceARCore.getTrackingState() != TrackingState.TRACKING) {
           break;
         }
 
-        float scaleFactor = 1.0f;
+        AugmentedFaceArCore face = new AugmentedFaceArCore(faceARCore);
+
+        float scaleFactor = 0.2f;
 
         // Face objects use transparency so they must be rendered back to front without depth write.
         GLES20.glDepthMask(false);
@@ -300,19 +305,28 @@ public class AugmentedFacesActivity extends AppCompatActivity implements GLSurfa
         augmentedFaceRenderer.draw(
             projectionMatrix, viewMatrix, modelMatrix, colorCorrectionRgba, face);
 
-        // 2. Next, render the 3D objects attached to the forehead.
-        face.getRegionPose(RegionType.FOREHEAD_RIGHT).toMatrix(rightEarMatrix, 0);
-        rightEarObject.updateModelMatrix(rightEarMatrix, scaleFactor);
-        rightEarObject.draw(viewMatrix, projectionMatrix, colorCorrectionRgba, DEFAULT_COLOR);
-
-        face.getRegionPose(RegionType.FOREHEAD_LEFT).toMatrix(leftEarMatrix, 0);
-        leftEarObject.updateModelMatrix(leftEarMatrix, scaleFactor);
-        leftEarObject.draw(viewMatrix, projectionMatrix, colorCorrectionRgba, DEFAULT_COLOR);
-
-        // 3. Render the nose last so that it is not occluded by face mesh or by 3D objects attached
-        // to the forehead regions.
-        face.getRegionPose(RegionType.NOSE_TIP).toMatrix(noseMatrix, 0);
+//        // 2. Next, render the 3D objects attached to the forehead.
+//        face.getRegionPose(AugmentedFace.RegionType.FOREHEAD_RIGHT).toMatrix(rightEarMatrix, 0);
+//        rightEarObject.updateModelMatrix(rightEarMatrix, scaleFactor);
+//        rightEarObject.draw(viewMatrix, projectionMatrix, colorCorrectionRgba, DEFAULT_COLOR);
+//
+//        face.getRegionPose(RegionType.FOREHEAD_LEFT).toMatrix(leftEarMatrix, 0);
+//        leftEarObject.updateModelMatrix(leftEarMatrix, scaleFactor);
+//        leftEarObject.draw(viewMatrix, projectionMatrix, colorCorrectionRgba, DEFAULT_COLOR);
+//
+//        // 3. Render the nose last so that it is not occluded by face mesh or by 3D objects attached
+//        // to the forehead regions.
+        noseObject.setModelMatrix(modelMatrix,1.0f);
+        face.getRegionPose().toMatrix(noseMatrix, 0);
         noseObject.updateModelMatrix(noseMatrix, scaleFactor);
+
+
+        //local rotate
+        Vector3 axisY  = new Vector3(0,1,0);
+        Vector3 direction = face.getDirectionLeft();
+        Quaternion localRotation = new Quaternion(axisY.cross(direction).normalise(),axisY.angle(direction));
+        noseObject.updateModelMatrix(localRotation.toMatrix(), 1.0f);
+
         noseObject.draw(viewMatrix, projectionMatrix, colorCorrectionRgba, DEFAULT_COLOR);
       }
     } catch (Throwable t) {

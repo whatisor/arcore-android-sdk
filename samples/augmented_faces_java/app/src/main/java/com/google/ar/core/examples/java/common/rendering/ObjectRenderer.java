@@ -304,13 +304,30 @@ public class ObjectRenderer {
    * @param scaleFactor A separate scaling factor to apply before the {@code modelMatrix}.
    * @see android.opengl.Matrix
    */
-  public void updateModelMatrix(float[] modelMatrix, float scaleFactor) {
+  public void setModelMatrix(float[] modelMatrix, float scaleFactor) {
     float[] scaleMatrix = new float[16];
     Matrix.setIdentityM(scaleMatrix, 0);
     scaleMatrix[0] = scaleFactor;
     scaleMatrix[5] = scaleFactor;
     scaleMatrix[10] = scaleFactor;
     Matrix.multiplyMM(this.modelMatrix, 0, modelMatrix, 0, scaleMatrix, 0);
+  }
+
+
+  /**
+   * Updates the object model matrix and applies scaling.
+   *
+   * @param modelMatrix A 4x4 model-to-world transformation matrix, stored in column-major order.
+   * @see android.opengl.Matrix
+   */
+  public void updateModelMatrix(float[] modelMatrix, float scaleFactor) {
+    float[] scaleMatrix = new float[16];
+    Matrix.setIdentityM(scaleMatrix, 0);
+    scaleMatrix[0] = scaleFactor;
+    scaleMatrix[5] = scaleFactor;
+    scaleMatrix[10] = scaleFactor;
+    Matrix.multiplyMM(modelMatrix, 0, modelMatrix, 0, scaleMatrix, 0);
+    Matrix.multiplyMM(this.modelMatrix, 0, this.modelMatrix, 0, modelMatrix, 0);
   }
 
   /**
@@ -338,7 +355,7 @@ public class ObjectRenderer {
    * @param colorCorrectionRgba Illumination intensity. Combined with diffuse and specular material
    *     properties.
    * @see #setBlendMode(BlendMode)
-   * @see #updateModelMatrix(float[], float)
+   * @see #setModelMatrix(float[], float)
    * @see #setMaterialProperties(float, float, float, float)
    * @see android.opengl.Matrix
    */
